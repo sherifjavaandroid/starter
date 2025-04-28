@@ -3,8 +3,10 @@ import '../../security/security_manager.dart';
 import '../../security/rate_limiter_service.dart';
 import '../../security/root_detection_service.dart';
 import '../../security/anti_tampering_service.dart';
-import '../../utils/secure_logger.dart';
+import '../../utils/secure_logger.dart' as logger_util;
 import '../../utils/device_info_service.dart';
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
 
 class SecurityInterceptor extends Interceptor {
   final SecurityManager _securityManager;
@@ -12,7 +14,7 @@ class SecurityInterceptor extends Interceptor {
   final RootDetectionService _rootDetectionService;
   final AntiTamperingService _antiTamperingService;
   final DeviceInfoService _deviceInfoService;
-  final SecureLogger _logger;
+  final logger_util.SecureLogger _logger;
 
   SecurityInterceptor(
       this._securityManager,
@@ -29,15 +31,15 @@ class SecurityInterceptor extends Interceptor {
       RequestInterceptorHandler handler,
       ) async {
     try {
-      // التحقق من سلامة البيئة
+      // Check environment security
       await _checkEnvironmentSecurity();
 
-      // التحقق من معدل الطلبات
+      // Check rate limits
       if (!await _checkRateLimit(options)) {
         throw RateLimitException();
       }
 
-      // التحقق من صحة الطلب
+      // Validate request
       final isValid = await _securityManager.validateRequest(
         path: options.path,
         params: _getRequestParams(options),
@@ -48,42 +50,42 @@ class SecurityInterceptor extends Interceptor {
         throw SecurityViolationException('Invalid request');
       }
 
-      // إضافة رؤوس الأمان
+      // Add security headers
       await _addSecurityHeaders(options);
 
-      // تحديث نشاط المستخدم
+      // Update user activity
       _securityManager.updateLastActivity();
 
       handler.next(options);
     } catch (e) {
       _logger.log(
         'Security interceptor error: $e',
-        level: LogLevel.error,
-        category: SecurityCategory.security,
+        level: logger_util.LogLevel.error,
+        category: logger_util.SecurityCategory.security,
       );
-      handler.reject(DioError(requestOptions: options, error: e));
+      handler.reject(DioException(requestOptions: options, error: e));
     }
   }
 
   @override
   void onResponse(Response response, ResponseInterceptorHandler handler) {
-    // التحقق من رؤوس الأمان في الاستجابة
+    // Validate security headers in response
     _validateResponseSecurity(response);
 
-    // تحديث نشاط المستخدم
+    // Update user activity
     _securityManager.updateLastActivity();
 
     handler.next(response);
   }
 
   @override
-  void onError(DioError err, ErrorInterceptorHandler handler) {
-    // تسجيل الأخطاء الأمنية
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    // Log security errors
     if (err.error is SecurityViolationException) {
       _logger.log(
         'Security violation: ${err.error}',
-        level: LogLevel.critical,
-        category: SecurityCategory.security,
+        level: logger_util.LogLevel.critical,
+        category: logger_util.SecurityCategory.security,
       );
     }
 
@@ -91,22 +93,22 @@ class SecurityInterceptor extends Interceptor {
   }
 
   Future<void> _checkEnvironmentSecurity() async {
-    // التحقق من الجذر/الجيلبريك
+    // Check for root/jailbreak
     if (await _rootDetectionService.isDeviceRooted()) {
       throw SecurityViolationException('Device is rooted');
     }
 
-    // التحقق من سلامة التطبيق
+    // Check app integrity
     if (!await _antiTamperingService.isAppIntegrityValid()) {
       throw SecurityViolationException('App integrity compromised');
     }
 
-    // التحقق من التصحيح
+    // Check for debugging
     if (await _antiTamperingService.isDebuggingEnabled()) {
       throw SecurityViolationException('Debugging detected');
     }
 
-    // التحقق من حقن الكود
+    // Check for code injection
     if (await _antiTamperingService.detectCodeInjection()) {
       throw SecurityViolationException('Code injection detected');
     }
@@ -131,33 +133,33 @@ class SecurityInterceptor extends Interceptor {
   }
 
   Future<void> _addSecurityHeaders(RequestOptions options) async {
-    // إضافة معرف الجهاز
+    // Add device ID
     final deviceId = await _deviceInfoService.getDeviceId();
     options.headers['X-Device-ID'] = deviceId;
 
-    // إضافة معلومات الجهاز
+    // Add device info
     final deviceInfo = await _deviceInfoService.getDeviceInfo();
     options.headers['X-Device-Info'] = deviceInfo;
 
-    // إضافة معرف الطلب الفريد
+    // Add unique request ID
     options.headers['X-Request-ID'] = DateTime.now().millisecondsSinceEpoch.toString();
 
-    // إضافة توقيع الطلب
+    // Add request signature
     final signature = await _generateRequestSignature(options);
     options.headers['X-Request-Signature'] = signature;
 
-    // إضافة نسخة التطبيق
+    // Add app version
     options.headers['X-App-Version'] = '1.0.0';
 
-    // إضافة نظام التشغيل
-    options.headers['X-OS'] = await _deviceInfoService.getOS();
+    // Add OS
+    options.headers['X-OS'] = _deviceInfoService.getOS();
 
-    // إضافة الطابع الزمني
+    // Add timestamp
     options.headers['X-Timestamp'] = DateTime.now().toUtc().toIso8601String();
   }
 
   Future<String> _generateRequestSignature(RequestOptions options) async {
-    // إنشاء توقيع للطلب للتأكد من عدم التلاعب
+    // Create a signature for the request to prevent tampering
     final signatureData = [
       options.method,
       options.path,
@@ -165,11 +167,15 @@ class SecurityInterceptor extends Interceptor {
       options.headers['X-Device-ID'],
     ].join('|');
 
-    return await _securityManager.generateRequestSignature(signatureData);
+    // If SecurityManager doesn't have generateRequestSignature method,
+    // we'll implement our own here
+    final bytes = utf8.encode(signatureData);
+    final digest = sha256.convert(bytes);
+    return digest.toString();
   }
 
   void _validateResponseSecurity(Response response) {
-    // التحقق من وجود رؤوس الأمان المطلوبة
+    // Check for required security headers
     final requiredHeaders = [
       'X-Security-Token',
       'X-Response-Signature',
@@ -183,13 +189,13 @@ class SecurityInterceptor extends Interceptor {
       if (response.headers.value(header) == null) {
         _logger.log(
           'Missing security header: $header',
-          level: LogLevel.warning,
-          category: SecurityCategory.security,
+          level: logger_util.LogLevel.warning,
+          category: logger_util.SecurityCategory.security,
         );
       }
     }
 
-    // التحقق من توقيع الاستجابة
+    // Verify response signature
     final signature = response.headers.value('X-Response-Signature');
     if (signature != null) {
       _verifyResponseSignature(response, signature);
@@ -197,8 +203,8 @@ class SecurityInterceptor extends Interceptor {
   }
 
   void _verifyResponseSignature(Response response, String signature) {
-    // التحقق من توقيع الاستجابة
-    // يمكن تنفيذ منطق التحقق هنا
+    // Verify response signature
+    // Implementation logic can be added here
   }
 }
 

@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
 import '../../utils/secure_logger.dart';
-import '../network_service.dart';
 
 class ErrorInterceptor extends Interceptor {
   final SecureLogger _logger;
@@ -10,13 +9,13 @@ class ErrorInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
-    // معالجة الخطأ وتحويله إلى استثناء مخصص
+    // Handle the error and convert it to a custom exception
     final customException = _handleError(err);
 
-    // تسجيل الخطأ بشكل آمن
+    // Log the error securely
     _logError(err, customException);
 
-    // إرجاع الخطأ المخصص
+    // Return the custom exception
     handler.next(DioException(
       requestOptions: err.requestOptions,
       response: err.response,
@@ -58,7 +57,7 @@ class ErrorInterceptor extends Interceptor {
     final data = error.response?.data;
     String? message;
 
-    // محاولة استخراج رسالة الخطأ من الاستجابة
+    // Try to extract error message from response
     if (data is Map<String, dynamic>) {
       message = data['message'] ?? data['error'] ?? data['errors']?.toString();
     }
@@ -90,7 +89,7 @@ class ErrorInterceptor extends Interceptor {
         if (statusCode >= 500) {
           return ServerException(message ?? 'Server error', statusCode);
         }
-        return NetworkException(message ?? 'Network error', statusCode);
+        return NetworkException(message ?? 'Network error', statusCode: statusCode);
     }
   }
 
@@ -135,7 +134,7 @@ class ErrorInterceptor extends Interceptor {
       'base_url': options.baseUrl,
       'query_parameters': _sanitizeParameters(options.queryParameters),
       'headers': _sanitizeHeaders(options.headers),
-      // لا نسجل البيانات الحساسة
+      // Don't log sensitive data
       'has_data': options.data != null,
     };
   }
@@ -147,7 +146,7 @@ class ErrorInterceptor extends Interceptor {
       'status_code': response.statusCode,
       'status_message': response.statusMessage,
       'headers': _sanitizeHeaders(response.headers.map),
-      // لا نسجل البيانات الحساسة
+      // Don't log sensitive data
       'has_data': response.data != null,
     };
   }
@@ -211,22 +210,63 @@ class ErrorInterceptor extends Interceptor {
   }
 }
 
-// استثناءات مخصصة
+// Custom exceptions
 class BadRequestException extends NetworkException {
-  BadRequestException(String message) : super(message, statusCode: 400);
+  BadRequestException(super.message) : super(statusCode: 400);
 }
 
 class ValidationException extends NetworkException {
   final Map<String, dynamic>? errors;
 
-  ValidationException(String message, this.errors)
-      : super(message, statusCode: 422, data: errors);
+  ValidationException(super.message, this.errors)
+      : super(statusCode: 422);
 }
 
 class ConflictException extends NetworkException {
-  ConflictException(String message) : super(message, statusCode: 409);
+  ConflictException(super.message) : super(statusCode: 409);
 }
 
 class InternalServerException extends NetworkException {
-  InternalServerException(String message) : super(message, statusCode: 500);
+  InternalServerException(super.message) : super(statusCode: 500);
+}
+
+// Modified NetworkException to fix the constructor issue
+class NetworkException implements Exception {
+  final String message;
+  final int? statusCode;
+  final dynamic data;
+
+  NetworkException(this.message, {this.statusCode, this.data});
+
+  @override
+  String toString() => 'NetworkException: $message ${statusCode != null ? '($statusCode)' : ''}';
+}
+
+// Other custom exceptions
+class TimeoutException extends NetworkException {
+  TimeoutException() : super('Request timed out');
+}
+
+class NoInternetException extends NetworkException {
+  NoInternetException() : super('No internet connection');
+}
+
+class ServerException extends NetworkException {
+  ServerException(super.message, int statusCode) : super(statusCode: statusCode);
+}
+
+class UnauthorizedException extends NetworkException {
+  UnauthorizedException(super.message) : super(statusCode: 401);
+}
+
+class ForbiddenException extends NetworkException {
+  ForbiddenException(super.message) : super(statusCode: 403);
+}
+
+class NotFoundException extends NetworkException {
+  NotFoundException(super.message) : super(statusCode: 404);
+}
+
+class RateLimitException extends NetworkException {
+  RateLimitException(super.message) : super(statusCode: 429);
 }
