@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- التكوين الافتراضي لجميع الاتصالات -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system"/>
+            <certificates src="user"/>
+        </trust-anchors>
+    </base-config>
+
+    <!-- تكوين خاص بالـ API -->
+    <domain-config>
+        <domain includeSubdomains="true">api.unsplash.com</domain>
+        <trust-anchors>
+            <certificates src="@raw/unsplash_certificate"/>
+        </trust-anchors>
+        <pin-set expiration="2025-12-31">
+            <!-- Public key pins for Unsplash API -->
+            <pin digest="SHA-256">YOUR_UNSPLASH_PIN_HERE</pin>
+            <pin digest="SHA-256">YOUR_BACKUP_PIN_HERE</pin>
+        </pin-set>
+    </domain-config>
+
+    <!-- تكوين خاص للتطوير (تعطيله في الإنتاج) -->
+    <debug-overrides>
+        <trust-anchors>
+            <certificates src="user"/>
+        </trust-anchors>
+    </debug-overrides>
+
+    <!-- منع الاتصالات غير الآمنة -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">*</domain>
+    </domain-config>
+</network-security-config>
