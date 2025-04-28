@@ -9,8 +9,9 @@ class InputSanitizer {
 
     // إزالة الأحرف الخاصة الخطرة وأحرف التحكم والأحرف غير المرئية
     sanitized = sanitized
-        .replaceAll(RegExp(r"[<>{}\\'\"[]]"), '')
-        .replaceAll(RegExp(r'[\x00-\x1F\x7F]'), '') // أحرف التحكم
+        .replaceAll(RegExp(r'[\u200B-\u200D\uFEFF]'), '')
+
+    .replaceAll(RegExp(r'[\x00-\x1F\x7F]'), '') // أحرف التحكم
         .replaceAll(RegExp(r'[\u200B-\u200D\uFEFF]'), ''); // أحرف غير مرئية
 
 
@@ -110,7 +111,7 @@ class InputSanitizer {
 
     String sanitized = path.trim();
     sanitized = sanitized.replaceAll(RegExp(r'\.\.'), '');
-    sanitized = sanitized.replaceAll(RegExp(r'[^a-zA-Z0-9/_\.-]'), '');
+    sanitized = sanitized.replaceAll(RegExp(r'[^a-zA-Z0-9/_.-]'), '');
     sanitized = sanitized.replaceAll(RegExp(r'/+'), '/');
 
     return sanitized;
