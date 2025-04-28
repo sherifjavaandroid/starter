@@ -17,7 +17,6 @@ dependencies:
   crypto: ^3.0.3
   pointycastle: ^3.7.3
   jwt_decoder: ^2.0.1
-  dartz:
 
   # مصادقة وتفويض
   local_auth: ^2.1.7
@@ -34,6 +33,7 @@ dependencies:
   flutter_jailbreak_detection: ^1.10.0
   safe_device: ^1.1.4
   flutter_root_jailbreak: ^2.0.2
+
 
   # إدارة الحالة
   flutter_bloc: ^8.1.3
@@ -69,6 +69,7 @@ dependencies:
   # حماية الشاشة
 #  flutter_screenprotector: ^1.2.0
   disable_screenshots: ^0.2.0
+  dartz: ^0.10.1
 
   # تعتيم الكود
   #flutter_obfuscation: ^1.0.0

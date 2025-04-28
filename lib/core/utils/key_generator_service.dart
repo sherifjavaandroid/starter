@@ -1,20 +1,14 @@
 import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
-import 'package:crypto/crypto.dart';
 import 'package:pointycastle/export.dart';
 
 class KeyGeneratorService {
-  final SecureRandom _secureRandom = FortunaRandom();
+  final Random _secureRandom = Random.secure();
   bool _isInitialized = false;
 
   Future<void> initialize() async {
     if (_isInitialized) return;
-
-    // تهيئة مولد الأرقام العشوائية الآمن
-    final seedSource = _createCryptographicallySecureSeed();
-    _secureRandom.seed(KeyParameter(seedSource));
-
     _isInitialized = true;
   }
 
@@ -24,7 +18,11 @@ class KeyGeneratorService {
 
     final keyBytes = bits ~/ 8;
     final key = Uint8List(keyBytes);
-    _secureRandom.nextBytes(key);
+
+    // Fill the key with secure random bytes
+    for (int i = 0; i < keyBytes; i++) {
+      key[i] = _secureRandom.nextInt(256);
+    }
 
     return key;
   }
@@ -33,9 +31,12 @@ class KeyGeneratorService {
   Future<AsymmetricKeyPair<PublicKey, PrivateKey>> generateRsaKeyPair({int bits = 4096}) async {
     if (!_isInitialized) await initialize();
 
+    // Create a secure random for RSA key generation
+    final secureRandom = _createSecureRandom();
+
     final keyParams = RSAKeyGeneratorParameters(BigInt.parse('65537'), bits, 64);
     final keyGenerator = RSAKeyGenerator();
-    keyGenerator.init(ParametersWithRandom(keyParams, _secureRandom));
+    keyGenerator.init(ParametersWithRandom(keyParams, secureRandom));
 
     return keyGenerator.generateKeyPair();
   }
@@ -44,11 +45,14 @@ class KeyGeneratorService {
   Future<AsymmetricKeyPair<PublicKey, PrivateKey>> generateEcdsaKeyPair({String curve = 'secp256r1'}) async {
     if (!_isInitialized) await initialize();
 
+    // Create a secure random for EC key generation
+    final secureRandom = _createSecureRandom();
+
     final domainParams = ECCurve_secp256r1(); // استخدام منحنى secp256r1
     final keyParams = ECKeyGeneratorParameters(domainParams);
 
     final keyGenerator = ECKeyGenerator();
-    keyGenerator.init(ParametersWithRandom(keyParams, _secureRandom));
+    keyGenerator.init(ParametersWithRandom(keyParams, secureRandom));
 
     return keyGenerator.generateKeyPair();
   }
@@ -59,7 +63,11 @@ class KeyGeneratorService {
 
     final keyBytes = bits ~/ 8;
     final key = Uint8List(keyBytes);
-    _secureRandom.nextBytes(key);
+
+    // Fill the key with secure random bytes
+    for (int i = 0; i < keyBytes; i++) {
+      key[i] = _secureRandom.nextInt(256);
+    }
 
     return key;
   }
@@ -69,7 +77,11 @@ class KeyGeneratorService {
     if (!_isInitialized) await initialize();
 
     final salt = Uint8List(length);
-    _secureRandom.nextBytes(salt);
+
+    // Fill the salt with secure random bytes
+    for (int i = 0; i < length; i++) {
+      salt[i] = _secureRandom.nextInt(256);
+    }
 
     return salt;
   }
@@ -79,7 +91,11 @@ class KeyGeneratorService {
     if (!_isInitialized) await initialize();
 
     final iv = Uint8List(length);
-    _secureRandom.nextBytes(iv);
+
+    // Fill the IV with secure random bytes
+    for (int i = 0; i < length; i++) {
+      iv[i] = _secureRandom.nextInt(256);
+    }
 
     return iv;
   }
@@ -92,7 +108,8 @@ class KeyGeneratorService {
         int keyLength = 32,
       }) async {
     final pbkdf2 = PBKDF2KeyDerivator(HMac(SHA256Digest(), 64));
-    pbkdf2.init(Pbkdf2Parameters(salt, iterations, keyLength));
+    final params = Pbkdf2Parameters(salt, iterations, keyLength);
+    pbkdf2.init(params);
 
     return pbkdf2.process(Uint8List.fromList(utf8.encode(password)));
   }
@@ -102,9 +119,7 @@ class KeyGeneratorService {
     if (!_isInitialized) await initialize();
 
     const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    final random = Random.secure();
-
-    return List.generate(length, (_) => chars[random.nextInt(chars.length)]).join();
+    return List.generate(length, (_) => chars[_secureRandom.nextInt(chars.length)]).join();
   }
 
   /// توليد مفتاح API
@@ -155,7 +170,9 @@ class KeyGeneratorService {
 
     cipher.init(true, params);
 
-    final encryptedKey = cipher.process(privateKeyBytes);
+    final encryptedKey = Uint8List(cipher.getOutputSize(privateKeyBytes.length));
+    final len = cipher.processBytes(privateKeyBytes, 0, privateKeyBytes.length, encryptedKey, 0);
+    cipher.doFinal(encryptedKey, len);
 
     // دمج البيانات
     final result = {
@@ -194,19 +211,29 @@ class KeyGeneratorService {
 
     cipher.init(false, params);
 
-    final decryptedKeyBytes = cipher.process(encryptedKey);
+    final decryptedKeyBytes = Uint8List(cipher.getOutputSize(encryptedKey.length));
+    final len = cipher.processBytes(encryptedKey, 0, encryptedKey.length, decryptedKeyBytes, 0);
+    cipher.doFinal(decryptedKeyBytes, len);
 
     // تحويل البايتات إلى مفتاح خاص
     return _decodePrivateKey(decryptedKeyBytes);
   }
 
+  /// Create a SecureRandom from PointyCastle that's properly seeded
+  SecureRandom _createSecureRandom() {
+    final secureRandom = FortunaRandom();
+    final seed = _createCryptographicallySecureSeed();
+    secureRandom.seed(KeyParameter(seed));
+    return secureRandom;
+  }
+
   Uint8List _createCryptographicallySecureSeed() {
     final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final random = Random.secure();
     final seed = Uint8List(32);
 
+    // Fill the seed with secure random bytes
     for (int i = 0; i < seed.length; i++) {
-      seed[i] = random.nextInt(256);
+      seed[i] = _secureRandom.nextInt(256);
     }
 
     // إضافة الختم الزمني للعشوائية
@@ -238,12 +265,14 @@ class KeyGeneratorService {
   Uint8List _encodeRSAPrivateKey(RSAPrivateKey key) {
     // يمكن تنفيذ ترميز ASN.1 DER هنا
     // هذا placeholder فقط
-    return Uint8List.fromList(utf8.encode(key.modulus.toString()));
+    final modulusString = key.modulus.toString();
+    return Uint8List.fromList(utf8.encode(modulusString));
   }
 
   Uint8List _encodeECPrivateKey(ECPrivateKey key) {
     // يمكن تنفيذ ترميز ASN.1 DER هنا
     // هذا placeholder فقط
-    return Uint8List.fromList(utf8.encode(key.d.toString()));
+    final dString = key.d.toString();
+    return Uint8List.fromList(utf8.encode(dString));
   }
 }

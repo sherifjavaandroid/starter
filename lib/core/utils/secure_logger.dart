@@ -118,10 +118,11 @@ class SecureLogger {
         final timestamp = DateTime.now().millisecondsSinceEpoch;
         final filename = 'log_$timestamp.enc';
 
+        // Using useEncryption instead of encrypt
         await _storageService!.saveSecureData(
           'logs/$filename',
           logsText,
-          encrypt: true,
+          useEncryption: true,
         );
 
         // حفظ السجلات في ملف مؤقت للتحليل
