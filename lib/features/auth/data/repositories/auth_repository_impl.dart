@@ -1,4 +1,5 @@
 import 'package:dartz/dartz.dart';
+import '../../../../core/error/failures.dart';
 import '../../domain/entities/user.dart';
 import '../../domain/entities/session.dart';
 import '../../domain/repositories/auth_repository.dart';
