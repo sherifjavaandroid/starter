@@ -399,7 +399,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       case 409:
         return UserAlreadyExistsException();
       case 429:
-        return RateLimitException(Duration(seconds: 60));
+        return RateLimitException(const Duration(seconds: 60));
       default:
         return ServerException(
           error.response?.data['message'] ?? 'Server error',

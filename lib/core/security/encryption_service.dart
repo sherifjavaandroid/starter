@@ -1,11 +1,11 @@
 import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
-import 'package:encrypt/encrypt.dart' as encrypt;
+import 'package:encrypt/encrypt.dart' as encryptp;
 import 'package:crypto/crypto.dart';
 import 'package:pointycastle/export.dart';
 import 'package:flutter/foundation.dart';
-import '../di/security_module.dart';
+
 import '../utils/secure_logger.dart';
 import 'secure_storage_service.dart';
 
@@ -28,12 +28,68 @@ class EncryptionService {
   static const String _rsaPublicKeyId = 'rsa_public_key';
   static const String _rsaPrivateKeyId = 'rsa_private_key';
 
-  encrypt.Encrypter? _aesEncrypter;
+  encryptp.Encrypter? _aesEncrypter;
   RSAPublicKey? _rsaPublicKey;
   RSAPrivateKey? _rsaPrivateKey;
   final SecureRandom _secureRandom = FortunaRandom();
 
   EncryptionService(this._storageService, this._logger);
+
+  // ---------- METHODS REQUIRED BY AuthLocalDataSourceImpl ----------
+
+  /// Method to encrypt data - required by AuthLocalDataSourceImpl
+  Future<String> encrypt(String plainText) async {
+    try {
+      if (_aesEncrypter == null) {
+        await initialize();
+      }
+
+      // إنشاء IV عشوائي
+      final iv = await generateIv();
+
+      // تشفير البيانات
+      final encryptedBytes = await encryptData(plainText, nonce: iv);
+
+      // تحويل البيانات المشفرة إلى سلسلة نصية
+      final result = {
+        'iv': base64.encode(iv),
+        'data': base64.encode(encryptedBytes),
+      };
+
+      return json.encode(result);
+    } catch (e) {
+      _logger.log(
+        'Encryption failed in encrypt method: $e',
+        level: LogLevel.error,
+        category: SecurityCategory.encryption,
+      );
+      rethrow;
+    }
+  }
+
+  /// Method to decrypt data - required by AuthLocalDataSourceImpl
+  Future<String> decrypt(String encryptedText) async {
+    try {
+      if (_aesEncrypter == null) {
+        await initialize();
+      }
+
+      final Map<String, dynamic> encryptedData = json.decode(encryptedText);
+      final iv = base64.decode(encryptedData['iv']);
+      final data = base64.decode(encryptedData['data']);
+
+      return await decryptData(data, nonce: iv);
+    } catch (e) {
+      _logger.log(
+        'Decryption failed in decrypt method: $e',
+        level: LogLevel.error,
+        category: SecurityCategory.decryption,
+      );
+      rethrow;
+    }
+  }
+
+  // ---------- ORIGINAL METHODS ----------
 
   Future<void> initialize() async {
     try {
@@ -93,8 +149,8 @@ class EncryptionService {
       // تحميل مفتاح AES
       final aesKeyData = await _storageService.getSecureData(_aesKeyId);
       if (aesKeyData != null) {
-        final aesKey = encrypt.Key.fromBase64(aesKeyData);
-        _aesEncrypter = encrypt.Encrypter(encrypt.AES(aesKey, mode: encrypt.AESMode.gcm));
+        final aesKey = encryptp.Key.fromBase64(aesKeyData);
+        _aesEncrypter = encryptp.Encrypter(encryptp.AES(aesKey, mode: encryptp.AESMode.gcm));
       }
 
       // تحميل مفاتيح RSA
@@ -117,9 +173,9 @@ class EncryptionService {
   Future<void> _generateNewKeys() async {
     // إنشاء مفتاح AES جديد
     final aesKey = _generateSecureKey(_aesKeySize ~/ 8);
-    _aesEncrypter = encrypt.Encrypter(encrypt.AES(
-      encrypt.Key(aesKey),
-      mode: encrypt.AESMode.gcm,
+    _aesEncrypter = encryptp.Encrypter(encryptp.AES(
+      encryptp.Key(aesKey),
+      mode: encryptp.AESMode.gcm,
     ));
 
     // إنشاء زوج مفاتيح RSA جديد
@@ -134,7 +190,6 @@ class EncryptionService {
   Uint8List _generateSecureKey(int length) {
     return _secureRandom.nextBytes(length);
   }
-
 
   AsymmetricKeyPair<PublicKey, PrivateKey> _generateRSAKeyPair() {
     final keyParams = RSAKeyGeneratorParameters(BigInt.parse('65537'), _rsaKeySize, 64);
@@ -173,7 +228,7 @@ class EncryptionService {
       // تشفير البيانات
       final encrypted = _aesEncrypter!.encrypt(
         data,
-        iv: encrypt.IV(iv),
+        iv: encryptp.IV(iv),
       );
 
       // دمج IV مع البيانات المشفرة
@@ -212,8 +267,8 @@ class EncryptionService {
 
       // فك التشفير
       final decrypted = _aesEncrypter!.decrypt(
-        encrypt.Encrypted(ciphertext),
-        iv: encrypt.IV(iv),
+        encryptp.Encrypted(ciphertext),
+        iv: encryptp.IV(iv),
       );
 
       return decrypted;
@@ -362,6 +417,106 @@ class EncryptionService {
     _aesEncrypter = null;
     _rsaPublicKey = null;
     _rsaPrivateKey = null;
+  }
+
+  /// إعادة تشفير البيانات باستخدام مفتاح جديد
+  Future<String> reEncryptData(String encryptedText) async {
+    // فك تشفير البيانات باستخدام المفتاح الحالي
+    final decryptedData = await decrypt(encryptedText);
+
+    // إنشاء مفاتيح جديدة
+    await rotateKeys();
+
+    // إعادة تشفير البيانات بالمفتاح الجديد
+    return await encrypt(decryptedData);
+  }
+
+  /// التحقق من صحة التشفير
+  Future<bool> verifyEncryption(String plainText, String encryptedText) async {
+    try {
+      final decrypted = await decrypt(encryptedText);
+      return decrypted == plainText;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// تشفير ملف كامل
+  Future<Uint8List> encryptFile(Uint8List fileData) async {
+    final iv = await generateIv();
+    final encrypted = _aesEncrypter!.encryptBytes(
+      fileData,
+      iv: encryptp.IV(iv),
+    );
+
+    // دمج IV مع البيانات المشفرة
+    final combined = Uint8List(iv.length + encrypted.bytes.length);
+    combined.setRange(0, iv.length, iv);
+    combined.setRange(iv.length, combined.length, encrypted.bytes);
+
+    return combined;
+  }
+
+  /// فك تشفير ملف
+  Future<Uint8List> decryptFile(Uint8List encryptedFile) async {
+    final iv = encryptedFile.sublist(0, _ivSize);
+    final encrypted = encryptedFile.sublist(_ivSize);
+
+    final decrypted = _aesEncrypter!.decryptBytes(
+      encryptp.Encrypted(encrypted),
+      iv: encryptp.IV(iv),
+    );
+
+    return Uint8List.fromList(decrypted);
+  }
+
+  /// إنشاء توقيع رقمي للبيانات
+  Future<String> signData(String data) async {
+    if (_rsaPrivateKey == null) {
+      throw SecurityException('RSA private key not initialized');
+    }
+
+    try {
+      final dataHash = sha256.convert(utf8.encode(data)).bytes;
+      final signer = Signer('SHA-256/RSA')
+        ..init(true, PrivateKeyParameter<RSAPrivateKey>(_rsaPrivateKey!));
+
+      final signature = signer.generateSignature(Uint8List.fromList(dataHash));
+      return base64.encode((signature as RSASignature).bytes);
+    } catch (e) {
+      _logger.log(
+        'Failed to create digital signature: $e',
+        level: LogLevel.error,
+        category: SecurityCategory.encryption,
+      );
+      rethrow;
+    }
+  }
+
+  /// التحقق من صحة التوقيع الرقمي
+  Future<bool> verifySignature(String data, String signature) async {
+    if (_rsaPublicKey == null) {
+      throw SecurityException('RSA public key not initialized');
+    }
+
+    try {
+      final dataHash = sha256.convert(utf8.encode(data)).bytes;
+      final verifier = Signer('SHA-256/RSA')
+        ..init(false, PublicKeyParameter<RSAPublicKey>(_rsaPublicKey!));
+
+      final signatureBytes = base64.decode(signature);
+      return verifier.verifySignature(
+        Uint8List.fromList(dataHash),
+        RSASignature(signatureBytes),
+      );
+    } catch (e) {
+      _logger.log(
+        'Signature verification failed: $e',
+        level: LogLevel.error,
+        category: SecurityCategory.encryption,
+      );
+      return false;
+    }
   }
 }
 

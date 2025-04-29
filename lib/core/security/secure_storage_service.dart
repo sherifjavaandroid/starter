@@ -93,6 +93,25 @@ class SecureStorageService {
     return key;
   }
 
+  // ---------- ADDED/MODIFIED METHODS TO MATCH AuthLocalDataSourceImpl REQUIREMENTS ----------
+
+  /// Read data from secure storage (adapter method used by AuthLocalDataSourceImpl)
+  Future<String?> read(String key) async {
+    return await getSecureData(key);
+  }
+
+  /// Write data to secure storage (adapter method used by AuthLocalDataSourceImpl)
+  Future<void> write(String key, String value) async {
+    await saveSecureData(key, value);
+  }
+
+  /// Delete data from secure storage (adapter method used by AuthLocalDataSourceImpl)
+  Future<void> delete(String key) async {
+    await deleteSecureData(key);
+  }
+
+  // ---------- ORIGINAL METHODS ----------
+
   Future<void> saveSecureData(String key, String value, {bool useEncryption = true}) async {
     try {
       if (useEncryption && _encrypter != null) {
