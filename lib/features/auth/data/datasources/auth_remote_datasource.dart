@@ -1,9 +1,9 @@
-import 'dart:convert';
-import 'package:dio/dio.dart';
-import '../../../../core/constants/api_constants.dart';
-import '../../../../core/error/exceptions.dart';
-import '../../../../core/network/network_service.dart';
-import '../../../../core/utils/secure_logger.dart';
+
+import 'package:dio/dio.dart' as dio;
+import '../../../../core/constants/api_constants.dart' as api;
+import '../../../../core/error/exceptions.dart' as exceptions;
+import '../../../../core/network/network_service.dart' as network;
+import '../../../../core/utils/secure_logger.dart' as logger;
 import '../models/user_model.dart';
 import '../models/token_model.dart';
 import '../models/login_request_model.dart';
@@ -26,8 +26,8 @@ abstract class AuthRemoteDataSource {
 }
 
 class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
-  final NetworkService _networkService;
-  final SecureLogger _logger;
+  final network.NetworkService _networkService;
+  final logger.SecureLogger _logger;
 
   AuthRemoteDataSourceImpl(this._networkService, this._logger);
 
@@ -35,7 +35,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   Future<UserModel> login(LoginRequestModel request) async {
     try {
       final response = await _networkService.post<Map<String, dynamic>>(
-        endpoint: ApiConstants.login,
+        endpoint: api.ApiConstants.login,
         data: request.toJson(),
         converter: (json) => json as Map<String, dynamic>,
       );
@@ -46,22 +46,22 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         final userJson = response['user'] as Map<String, dynamic>;
         return UserModel.fromJson(userJson);
       } else {
-        throw AuthException('Invalid login response format');
+        throw exceptions.AuthException('Invalid login response format');
       }
-    } on DioError catch (e) {
+    } on dio.DioException catch (e) {
       _logger.log(
         'Login failed: ${e.message}',
-        level: LogLevel.error,
-        category: SecurityCategory.security,
+        level: logger.LogLevel.error,
+        category: logger.SecurityCategory.security,
       );
       throw _handleError(e);
     } catch (e) {
       _logger.log(
         'Login error: $e',
-        level: LogLevel.error,
-        category: SecurityCategory.security,
+        level: logger.LogLevel.error,
+        category: logger.SecurityCategory.security,
       );
-      throw AuthException('Login failed: $e');
+      throw exceptions.AuthException('Login failed: $e');
     }
   }
 
@@ -69,7 +69,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   Future<UserModel> signup(SignupRequestModel request) async {
     try {
       final response = await _networkService.post<Map<String, dynamic>>(
-        endpoint: ApiConstants.register,
+        endpoint: api.ApiConstants.register,
         data: request.toJson(),
         converter: (json) => json as Map<String, dynamic>,
       );
@@ -78,22 +78,22 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         final userJson = response['user'] as Map<String, dynamic>;
         return UserModel.fromJson(userJson);
       } else {
-        throw AuthException('Invalid signup response format');
+        throw exceptions.AuthException('Invalid signup response format');
       }
-    } on DioError catch (e) {
+    } on dio.DioException catch (e) {
       _logger.log(
         'Signup failed: ${e.message}',
-        level: LogLevel.error,
-        category: SecurityCategory.security,
+        level: logger.LogLevel.error,
+        category: logger.SecurityCategory.security,
       );
       throw _handleError(e);
     } catch (e) {
       _logger.log(
         'Signup error: $e',
-        level: LogLevel.error,
-        category: SecurityCategory.security,
+        level: logger.LogLevel.error,
+        category: logger.SecurityCategory.security,
       );
-      throw AuthException('Signup failed: $e');
+      throw exceptions.AuthException('Signup failed: $e');
     }
   }
 
@@ -101,21 +101,21 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   Future<void> logout() async {
     try {
       await _networkService.post<void>(
-        endpoint: ApiConstants.logout,
+        endpoint: api.ApiConstants.logout,
         converter: (_) => null,
       );
-    } on DioError catch (e) {
+    } on dio.DioException catch (e) {
       _logger.log(
         'Logout failed: ${e.message}',
-        level: LogLevel.error,
-        category: SecurityCategory.security,
+        level: logger.LogLevel.error,
+        category: logger.SecurityCategory.security,
       );
       // في حالة فشل تسجيل الخروج، نستمر في مسح البيانات المحلية
     } catch (e) {
       _logger.log(
         'Logout error: $e',
-        level: LogLevel.error,
-        category: SecurityCategory.security,
+        level: logger.LogLevel.error,
+        category: logger.SecurityCategory.security,
       );
     }
   }
@@ -129,20 +129,20 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       );
 
       return UserModel.fromJson(response);
-    } on DioError catch (e) {
+    } on dio.DioException catch (e) {
       _logger.log(
         'Get current user failed: ${e.message}',
-        level: LogLevel.error,
-        category: SecurityCategory.security,
+        level: logger.LogLevel.error,
+        category: logger.SecurityCategory.security,
       );
       throw _handleError(e);
     } catch (e) {
       _logger.log(
         'Get current user error: $e',
-        level: LogLevel.error,
-        category: SecurityCategory.security,
+        level: logger.LogLevel.error,
+        category: logger.SecurityCategory.security,
       );
-      throw AuthException('Failed to get current user: $e');
+      throw exceptions.AuthException('Failed to get current user: $e');
     }
   }
 
@@ -150,26 +150,26 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   Future<TokenModel> refreshToken(String refreshToken) async {
     try {
       final response = await _networkService.post<Map<String, dynamic>>(
-        endpoint: ApiConstants.refreshToken,
+        endpoint: api.ApiConstants.refreshToken,
         data: {'refresh_token': refreshToken},
         converter: (json) => json as Map<String, dynamic>,
       );
 
       return TokenModel.fromJson(response);
-    } on DioError catch (e) {
+    } on dio.DioException catch (e) {
       _logger.log(
         'Token refresh failed: ${e.message}',
-        level: LogLevel.error,
-        category: SecurityCategory.security,
+        level: logger.LogLevel.error,
+        category: logger.SecurityCategory.security,
       );
       throw _handleError(e);
     } catch (e) {
       _logger.log(
         'Token refresh error: $e',
-        level: LogLevel.error,
-        category: SecurityCategory.security,
+        level: logger.LogLevel.error,
+        category: logger.SecurityCategory.security,
       );
-      throw AuthException('Token refresh failed: $e');
+      throw exceptions.AuthException('Token refresh failed: $e');
     }
   }
 
@@ -177,24 +177,24 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   Future<void> resetPassword(String email) async {
     try {
       await _networkService.post<void>(
-        endpoint: ApiConstants.forgotPassword,
+        endpoint: api.ApiConstants.forgotPassword,
         data: {'email': email},
         converter: (_) => null,
       );
-    } on DioError catch (e) {
+    } on dio.DioException catch (e) {
       _logger.log(
         'Password reset failed: ${e.message}',
-        level: LogLevel.error,
-        category: SecurityCategory.security,
+        level: logger.LogLevel.error,
+        category: logger.SecurityCategory.security,
       );
       throw _handleError(e);
     } catch (e) {
       _logger.log(
         'Password reset error: $e',
-        level: LogLevel.error,
-        category: SecurityCategory.security,
+        level: logger.LogLevel.error,
+        category: logger.SecurityCategory.security,
       );
-      throw AuthException('Password reset failed: $e');
+      throw exceptions.AuthException('Password reset failed: $e');
     }
   }
 
@@ -209,20 +209,20 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         },
         converter: (_) => null,
       );
-    } on DioError catch (e) {
+    } on dio.DioException catch (e) {
       _logger.log(
         'Change password failed: ${e.message}',
-        level: LogLevel.error,
-        category: SecurityCategory.security,
+        level: logger.LogLevel.error,
+        category: logger.SecurityCategory.security,
       );
       throw _handleError(e);
     } catch (e) {
       _logger.log(
         'Change password error: $e',
-        level: LogLevel.error,
-        category: SecurityCategory.security,
+        level: logger.LogLevel.error,
+        category: logger.SecurityCategory.security,
       );
-      throw AuthException('Change password failed: $e');
+      throw exceptions.AuthException('Change password failed: $e');
     }
   }
 
@@ -234,20 +234,20 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         data: {'code': verificationCode},
         converter: (_) => null,
       );
-    } on DioError catch (e) {
+    } on dio.DioException catch (e) {
       _logger.log(
         'Email verification failed: ${e.message}',
-        level: LogLevel.error,
-        category: SecurityCategory.security,
+        level: logger.LogLevel.error,
+        category: logger.SecurityCategory.security,
       );
       throw _handleError(e);
     } catch (e) {
       _logger.log(
         'Email verification error: $e',
-        level: LogLevel.error,
-        category: SecurityCategory.security,
+        level: logger.LogLevel.error,
+        category: logger.SecurityCategory.security,
       );
-      throw AuthException('Email verification failed: $e');
+      throw exceptions.AuthException('Email verification failed: $e');
     }
   }
 
@@ -258,20 +258,20 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         endpoint: '/auth/resend-verification',
         converter: (_) => null,
       );
-    } on DioError catch (e) {
+    } on dio.DioException catch (e) {
       _logger.log(
         'Resend verification code failed: ${e.message}',
-        level: LogLevel.error,
-        category: SecurityCategory.security,
+        level: logger.LogLevel.error,
+        category: logger.SecurityCategory.security,
       );
       throw _handleError(e);
     } catch (e) {
       _logger.log(
         'Resend verification code error: $e',
-        level: LogLevel.error,
-        category: SecurityCategory.security,
+        level: logger.LogLevel.error,
+        category: logger.SecurityCategory.security,
       );
-      throw AuthException('Resend verification code failed: $e');
+      throw exceptions.AuthException('Resend verification code failed: $e');
     }
   }
 
@@ -289,20 +289,20 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       );
 
       return UserModel.fromJson(response);
-    } on DioError catch (e) {
+    } on dio.DioException catch (e) {
       _logger.log(
         'Update profile failed: ${e.message}',
-        level: LogLevel.error,
-        category: SecurityCategory.security,
+        level: logger.LogLevel.error,
+        category: logger.SecurityCategory.security,
       );
       throw _handleError(e);
     } catch (e) {
       _logger.log(
         'Update profile error: $e',
-        level: LogLevel.error,
-        category: SecurityCategory.security,
+        level: logger.LogLevel.error,
+        category: logger.SecurityCategory.security,
       );
-      throw AuthException('Update profile failed: $e');
+      throw exceptions.AuthException('Update profile failed: $e');
     }
   }
 
@@ -314,20 +314,20 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         data: {'password': password},
         converter: (_) => null,
       );
-    } on DioError catch (e) {
+    } on dio.DioException catch (e) {
       _logger.log(
         'Delete account failed: ${e.message}',
-        level: LogLevel.error,
-        category: SecurityCategory.security,
+        level: logger.LogLevel.error,
+        category: logger.SecurityCategory.security,
       );
       throw _handleError(e);
     } catch (e) {
       _logger.log(
         'Delete account error: $e',
-        level: LogLevel.error,
-        category: SecurityCategory.security,
+        level: logger.LogLevel.error,
+        category: logger.SecurityCategory.security,
       );
-      throw AuthException('Delete account failed: $e');
+      throw exceptions.AuthException('Delete account failed: $e');
     }
   }
 
@@ -339,20 +339,20 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         data: request.toJson(),
         converter: (_) => null,
       );
-    } on DioError catch (e) {
+    } on dio.DioException catch (e) {
       _logger.log(
         'Biometric enrollment failed: ${e.message}',
-        level: LogLevel.error,
-        category: SecurityCategory.security,
+        level: logger.LogLevel.error,
+        category: logger.SecurityCategory.security,
       );
       throw _handleError(e);
     } catch (e) {
       _logger.log(
         'Biometric enrollment error: $e',
-        level: LogLevel.error,
-        category: SecurityCategory.security,
+        level: logger.LogLevel.error,
+        category: logger.SecurityCategory.security,
       );
-      throw AuthException('Biometric enrollment failed: $e');
+      throw exceptions.AuthException('Biometric enrollment failed: $e');
     }
   }
 
@@ -366,42 +366,42 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       );
 
       return TokenModel.fromJson(response);
-    } on DioError catch (e) {
+    } on dio.DioException catch (e) {
       _logger.log(
         'Biometric authentication failed: ${e.message}',
-        level: LogLevel.error,
-        category: SecurityCategory.security,
+        level: logger.LogLevel.error,
+        category: logger.SecurityCategory.security,
       );
       throw _handleError(e);
     } catch (e) {
       _logger.log(
         'Biometric authentication error: $e',
-        level: LogLevel.error,
-        category: SecurityCategory.security,
+        level: logger.LogLevel.error,
+        category: logger.SecurityCategory.security,
       );
-      throw AuthException('Biometric authentication failed: $e');
+      throw exceptions.AuthException('Biometric authentication failed: $e');
     }
   }
 
-  Exception _handleError(DioError error) {
+  Exception _handleError(dio.DioException error) {
     switch (error.response?.statusCode) {
       case 400:
-        return ValidationException(
+        return exceptions.ValidationException(
           error.response?.data['message'] ?? 'Invalid input',
           errors: error.response?.data['errors'],
         );
       case 401:
-        return UnauthorizedException();
+        return network.UnauthorizedException();
       case 403:
-        return ForbiddenException();
+        return network.ForbiddenException();
       case 404:
-        return UserNotFoundException();
+        return exceptions.UserNotFoundException();
       case 409:
-        return UserAlreadyExistsException();
+        return exceptions.UserAlreadyExistsException();
       case 429:
-        return RateLimitException(const Duration(seconds: 60));
+        return exceptions.RateLimitException(const Duration(seconds: 60));
       default:
-        return ServerException(
+        return exceptions.ServerException(
           error.response?.data['message'] ?? 'Server error',
           statusCode: error.response?.statusCode,
         );
